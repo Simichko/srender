@@ -15,7 +15,11 @@ struct App {
     surface: Option<Surface<OwnedDisplayHandle, Arc<Window>>>,
     window: Option<Arc<Window>>,
     mouse_pos: PhysicalPosition<f64>,
+    last_mouse_pos: Option<PhysicalPosition<f64>>,
     mouse_pressed: bool,
+    canvas: Vec<u32>,
+    canvas_width: u32,
+    canvas_height: u32,
 }
 
 impl App {
@@ -25,7 +29,11 @@ impl App {
             surface: None,
             window: None,
             mouse_pos: PhysicalPosition { x: 0.0, y: 0.0 },
+            last_mouse_pos: None,
             mouse_pressed: false,
+            canvas: Vec::new(),
+            canvas_width: 0,
+            canvas_height: 0,
         }
     }
 
@@ -76,34 +84,40 @@ impl App {
     }
 
     fn paint(&mut self) {
-        println!("Start painting");
-        let surface = self.surface.as_mut().unwrap();
+        if self.mouse_pressed {
+            let width = self.canvas_width;
+            let height = self.canvas_height;
 
+            let start = self.last_mouse_pos.unwrap_or(self.mouse_pos);
+            let end = self.mouse_pos;
+
+            let dx = end.x - start.x;
+            let dy = end.y - start.y;
+            let steps = dx.abs().max(dy.abs()).ceil() as u32;
+            let steps = steps.max(1);
+
+            for i in 0..=steps {
+                let t = i as f64 / steps as f64;
+                let x = (start.x + dx * t) as u32;
+                let y = (start.y + dy * t) as u32;
+
+                for py in y..(y + 10).min(height) {
+                    let row_start = width * py;
+                    for px in x..(x + 10).min(width) {
+                        self.canvas[(row_start + px) as usize] = 0xffffffff;
+                    }
+                }
+            }
+
+            self.last_mouse_pos = Some(end);
+        }
+
+        let surface = self.surface.as_mut().unwrap();
         let mut buffer = surface
             .buffer_mut()
             .expect("Failed to get the softbuffer buffer");
 
-        let age = buffer.age();
-        if age == 0 || age == 1 || age == 3 {
-            println!("{:?}", age);
-        }
-        if !self.mouse_pressed {
-            buffer
-                .present()
-                .expect("Failed to present the softbuffer buffer");
-            return;
-        }
-        let pos_y = self.mouse_pos.y as u32;
-        let pos_x = self.mouse_pos.x as u32;
-
-        for y in pos_y..(pos_y + 10) {
-            let row_start = buffer.width().get() * y;
-
-            for x in pos_x..(pos_x + 10) {
-                buffer[(row_start + x) as usize] = 0xff;
-            }
-        }
-
+        buffer.copy_from_slice(&self.canvas);
         buffer
             .present()
             .expect("Failed to present the softbuffer buffer");
@@ -140,19 +154,12 @@ impl ApplicationHandler<UserEvent> for App {
             .resize(width, height)
             .expect("Failed to resize the softbuffer surface");
 
+        self.canvas = vec![0; (width.get() * height.get()) as usize];
+        self.canvas_width = width.get();
+        self.canvas_height = height.get();
+
         self.surface = Some(surface);
         self.window = Some(window);
-
-        // let mut buffer = self
-        //     .surface
-        //     .as_mut()
-        //     .unwrap()
-        //     .buffer_mut()
-        //     .expect("Failed to get the softbuffer buffer");
-
-        // buffer.fill(DARK_GRAY);
-
-        // println!("Resumed buffer age {:?}", buffer.age());
     }
 
     fn window_event(
@@ -184,32 +191,33 @@ impl ApplicationHandler<UserEvent> for App {
                 button,
             } => {
                 if button == MouseButton::Left && state.is_pressed() {
-                    println!("Mouse pressed");
                     self.mouse_pressed = true;
+                    self.last_mouse_pos = Some(self.mouse_pos);
                     self.window.as_ref().unwrap().request_redraw();
                     return;
                 }
 
-                println!("Mouse not pressed!");
                 self.mouse_pressed = false;
+                self.last_mouse_pos = None;
+            }
+            WindowEvent::Resized(size) => {
+                if let (Some(width), Some(height)) =
+                    (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+                {
+                    if let Some(surface) = self.surface.as_mut() {
+                        surface.resize(width, height).expect("Failed to resize surface");
+                    }
+                    self.canvas = vec![0; (width.get() * height.get()) as usize];
+                    self.canvas_width = width.get();
+                    self.canvas_height = height.get();
+                }
             }
             WindowEvent::RedrawRequested => {
-                // println!("RedrawRequested");
                 if self.surface.is_none() {
-                    println!("Empty surface");
                     return;
                 }
 
-                // let surface = self.surface.as_mut().unwrap();
-                // let window = surface.window();
-
-                // if window.id() != id {
-                //     println!("Expected single window");
-                //     return;
-                // }
-
                 self.window.as_ref().unwrap().pre_present_notify();
-                self.paint();
                 self.paint();
             }
             _ => (),
