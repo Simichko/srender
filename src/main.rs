@@ -205,7 +205,9 @@ impl ApplicationHandler<UserEvent> for App {
                     (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
                 {
                     if let Some(surface) = self.surface.as_mut() {
-                        surface.resize(width, height).expect("Failed to resize surface");
+                        surface
+                            .resize(width, height)
+                            .expect("Failed to resize surface");
                     }
                     self.canvas = vec![0; (width.get() * height.get()) as usize];
                     self.canvas_width = width.get();
