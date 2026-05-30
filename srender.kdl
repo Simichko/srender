@@ -1,0 +1,16 @@
+layout {
+    cwd "~/src/rust/srender/"
+    pane split_direction="vertical" {
+        pane {
+            command "hx"
+            args "."
+        }
+        pane size="33%" {
+            command "fish"
+        }
+    }
+
+    pane size=1 borderless=true {
+        plugin location="zellij:status-bar"
+    }
+}
