@@ -91,10 +91,19 @@ impl App {
             let start = self.last_mouse_pos.unwrap_or(self.mouse_pos);
             let end = self.mouse_pos;
 
+            if end.x < 0.0 || end.y < 0.0 || end.x as u32 >= width || end.y as u32 >= height {
+                return;
+            }
+
             let dx = end.x - start.x;
             let dy = end.y - start.y;
+            println!("dx: {}      dy: {}", dx, dy);
+
             let steps = dx.abs().max(dy.abs()).ceil() as u32;
             let steps = steps.max(1);
+
+            // let steps = dx.abs().ceil() as u32;
+            // let steps = steps.max(1);
 
             for i in 0..=steps {
                 let t = i as f64 / steps as f64;
